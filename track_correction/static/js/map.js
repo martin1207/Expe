@@ -3,7 +3,9 @@
 // droite. Positions (m) calculées par le serveur (track_correction/position.py) pour les
 // boîtes gardées : x = dist·sin(angle) vers la droite, y = dist·cos(angle) vers l'avant.
 
-let posByFrame = new Map();     // frame -> [{id, cls, x, y, d, lat, lon}]
+let posByFrame = new Map();     // frame -> [{id, cls, x, y, d, lat, lon, src}]
+// distance : « ≈ » interpolée (pieds cachés), « ? » suspecte (cf. track_correction/smoothing.py)
+const distTxt = (p) => `${p.src === "interp" ? "≈" : p.src === "suspect" ? "?" : ""}${p.d.toFixed(1)} m`;
 let mapRange = 20;              // rayon affiché (m)
 const MAP_TRAIL_S = 2;          // longueur des traînées (s)
 const PED_MAX_M = 24;           // ped_distance.py ramène toute distance hors [0, 24 m] à 24 m
@@ -11,9 +13,9 @@ try { mapRange = +localStorage.getItem("ct_map_range") || 20; } catch {}
 
 function setPositions(list) {
   posByFrame = new Map();
-  for (const [f, id, c, x, y, d, lat, lon] of list || []) {
+  for (const [f, id, c, x, y, d, lat, lon, src] of list || []) {
     if (!posByFrame.has(f)) posByFrame.set(f, []);
-    posByFrame.get(f).push({ id, cls: c === "c" ? "cyclist" : "person", x, y, d, lat, lon });
+    posByFrame.get(f).push({ id, cls: c === "c" ? "cyclist" : "person", x, y, d, lat, lon, src });
   }
 }
 
@@ -82,7 +84,7 @@ function renderMap() {
     else { ctx.fillStyle = color(p.id); ctx.fill(); }
     if (sel) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); }
     ctx.fillStyle = color(p.id);
-    ctx.fillText(`#${p.id} ${p.d.toFixed(1)} m${hollow && !out ? "+" : ""}`, x + r + 3, y + 3);
+    ctx.fillText(`#${p.id} ${distTxt(p)}${hollow && !out ? "+" : ""}`, x + r + 3, y + 3);
   }
   $("mapinfo").textContent = cur.length ? `${cur.length} usager(s)` : "";
 }

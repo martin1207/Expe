@@ -16,6 +16,11 @@ Corrections NON destructives, à côté du CSV brut (jamais modifié) :
     runs_yolo11x/P01/P1_t_001_corrections.json      opérations et étiquettes du clip
     runs_yolo11x/P01/P1_t_001_tracks_corrected.csv  CSV corrigé
 
+Plusieurs modèles : chaque dossier runs_* au même format (runs_rfdetr de batch_rfdetr_track.py...)
+est une source de détections ; le menu à droite du clip montre le modèle affiché et permet d'en
+changer. Corrections de tracks propres à chaque modèle, étiquettes du clip communes (gardées dans
+runs_yolo11x, comme les exports). Voir track_correction/sources.py.
+
 Le code est dans le paquet track_correction/ (un module par étape, voir son __init__.py) :
 zone ego, cyclistes, distance / angle, droniste, piétons (conducteur, hors chemin, 5 au plus,
 raccrochages proposés), tracks courts, passages coupés, drone, export.
@@ -30,6 +35,8 @@ Exemples
     python correct_tracks.py --auto-link       # applique d'office les raccrochages de piétons proposés
     python correct_tracks.py --export-all      # runs_yolo11x/all_tracks_corrected.csv
                                                # et runs_yolo11x/clip_labels.csv
+    python correct_tracks.py --export-scenarios  # runs_yolo11x/P{nn}/P{nn}_scenarios.csv seuls
+                                               # (aussi écrits par l'interface à chaque enregistrement)
 
 Nécessite Flask. Lecture vidéo HEVC : Safari ou Chrome récent sur macOS.
 """
@@ -66,6 +73,8 @@ def main() -> int:
                     help="retire les piétons à plus de N m de la bande Transpolis (< 0 = garder)")
     ap.add_argument("--export-all", action="store_true",
                     help="écrire all_tracks_corrected.csv et clip_labels.csv puis quitter")
+    ap.add_argument("--export-scenarios", action="store_true",
+                    help="écrire le scénario de chaque clip, un CSV par participant, puis quitter")
     args = ap.parse_args()
 
     config.EGO_YAW = args.ego_yaw
@@ -79,11 +88,16 @@ def main() -> int:
     if args.export_all:
         from track_correction.export import export_all
         return export_all()
+    if args.export_scenarios:
+        from track_correction.export import export_scenarios
+        return export_scenarios()
 
     from track_correction.server import app, warm_up
     warm_up()
     print(f"Correction des tracks : http://{args.host}:{args.port}")
-    app.run(host=args.host, port=args.port, debug=False, threaded=True)
+    # pas de .env dans le projet : sa recherche appelle os.getcwd(), qui plante si le
+    # dossier courant du terminal a disparu (disque externe démonté puis remonté)
+    app.run(host=args.host, port=args.port, debug=False, threaded=True, load_dotenv=False)
     return 0
 
 

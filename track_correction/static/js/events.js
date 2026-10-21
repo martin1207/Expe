@@ -7,6 +7,10 @@ $("selP").onchange = () => {
   if (c) openClip(c.participant, c.clip);
 };
 $("selClip").onchange = () => openClip($("selP").value, $("selClip").value);
+$("selModel").onchange = () => {
+  try { localStorage.setItem("ct_src", $("selModel").value); } catch {}   // gardé pour les clips suivants
+  openClip(C.participant, C.clip, $("selModel").value);
+};
 $("btnPrev").onclick = () => stepClip(-1);
 $("btnNext").onclick = () => stepClip(+1);
 // --- étiquettes du clip
@@ -78,6 +82,7 @@ $("btnMerge").onclick = doMerge;
 $("btnDeleteBox").onclick = doDeleteBox;
 $("btnSplit").onclick = doSplit;
 $("btnKeep").onclick = doKeep;
+$("btnDraw").onclick = () => setDrawMode(!drawMode);
 $("btnClass").onclick = relabelAction;
 $("btnClear").onclick = () => select(null, false);
 $("btnUndo").onclick = undo;
@@ -109,13 +114,14 @@ window.addEventListener("keydown", (e) => {
   else if (k === "x" || k === "X") doDeleteBox();
   else if (k === "b" || k === "B") doSplit();
   else if (k === "k" || k === "K") doKeep();
+  else if (k === "n" || k === "N") setDrawMode(!drawMode);
   else if (k === "m" || k === "M") doMerge();
   else if (k === "t" || k === "T") relabelAction();
   else if (k === "g" || k === "G") toggleSat($("satsec").hidden);
   else if (k === "v" || k === "V") { if (!$("chkDrone").disabled) toggleDrone(!$("chkDrone").checked); }
   else if (k === ",") shiftDroneOffset(-0.1);
   else if (k === ".") shiftDroneOffset(+0.1);
-  else if (k === "Escape") select(null, false);
+  else if (k === "Escape") { if (drawMode) setDrawMode(false); else select(null, false); }
   else if (k === "0") resetView();
   else if (k === "Enter") { e.preventDefault(); $("btnDone").click(); }
 });

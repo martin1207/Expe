@@ -8,7 +8,7 @@ const octx = overlay.getContext("2d"), tctx = tl.getContext("2d");
 
 // ------------------------------------------------------------------ état
 let clips = [];                 // [{participant, clip, n_ops, reviewed}]
-let C = null;                   // clip courant (réponse /api/clip)
+let C = null;                   // clip courant (réponse /api/clip) ; C.source : dossier runs_* affiché
 let byFrame = new Map();        // frame -> [indices dans C.detections]
 let ops = [], undoSizes = [];   // opérations + taille de chaque action (pour annuler d'un bloc)
 let reviewed = false;
@@ -18,6 +18,7 @@ let labels = {};               // étiquettes du clip, mêmes clés que LABELS d
 // rejeu des corrections, une valeur par détection (index dans C.detections)
 let idOf = [];                  // id final (après fusions / coupures), -1 sans id
 let deadK = [];                 // true si la boîte est supprimée (track ou frame)
+let uncutOf = [];               // id du track sans les coupures (fusions appliquées), -1 sans id
 let cycAlias = new Map();       // morceaux réunis par le serveur : cycliste unique (track_alias)
 let cycBoxes = new Map();       // "frame:id" -> [x1n, y1n, x2n, y2n, parts] : boîtes cycliste du serveur
 let tracks = [];                // tracks vivants, triés par première frame
@@ -26,6 +27,7 @@ let deadTracks = [];
 let nLoneBikes = 0, nShort = 0;   // tracks retirés d'office : vélos seuls, trop courts
 // tracks retirés d'office par le serveur : id -> raison (pilot, rider, offpath, extra), cf. pipeline.py
 let removedIds = new Map();
+let keptIds = new Set();          // ids finaux gardés à la main (K) ou avec une boîte dessinée
 let allById = new Map();          // tous les tracks construits, retirés compris (id affiché -> track)
 let linkSugg = [];                // raccrochages proposés (track_correction/pedestrians.py)
 let goneCounts = {};              // tracks retirés d'office par raison (court compris)

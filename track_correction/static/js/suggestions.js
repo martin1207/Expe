@@ -9,7 +9,7 @@ function boxOf(id, f) {
 }
 
 function thumbUrl(f, box) {
-  return `/thumb/${C.participant}/${C.clip}/${f}?b=${box.map(v => v.toFixed(4)).join(",")}`;
+  return `/thumb/${C.participant}/${C.clip}/${f}?src=${C.source}&b=${box.map(v => v.toFixed(4)).join(",")}`;
 }
 
 function renderSuggestions() {

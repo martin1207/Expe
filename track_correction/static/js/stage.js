@@ -28,17 +28,67 @@ stage.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 let drag = null;
-stage.addEventListener("mousedown", (e) => { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false }; });
+// mode dessin (N) : glisser sur la vidéo pour tracer une boîte (js : finishDraw)
+let drawMode = false, drawing = null;
+const stageNorm = (e) => { const r = stage.getBoundingClientRect(); return toNorm(e.clientX - r.left, e.clientY - r.top); };
+stage.addEventListener("mousedown", (e) => {
+  if (drawMode) { const p = stageNorm(e); drawing = { a: p, b: p }; e.preventDefault(); return; }
+  drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
+});
 window.addEventListener("mousemove", (e) => {
+  if (drawing) { drawing.b = stageNorm(e); renderFrame(); return; }
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
   if (drag.moved && view.z > 1) { view.x = drag.vx + dx; view.y = drag.vy + dy; applyView(); }
 });
 window.addEventListener("mouseup", (e) => {
+  if (drawing) { const d = drawing; drawing = null; finishDraw(d); return; }
   if (drag && !drag.moved && e.target.closest("#stage")) clickStage(e);
   drag = null;
 });
+
+function setDrawMode(on) {
+  drawMode = on; drawing = null;
+  stage.classList.toggle("drawing", on);
+  $("btnDraw").classList.toggle("on", on);
+  setStatus(on ? "dessin : glisser sur la vidéo · Échap pour arrêter" : "");
+  renderFrame();
+}
+
+// Boîte tracée : ajoutée au track sélectionné (remplace sa boîte de la frame s'il en a une, et
+// interpole depuis sa boîte la plus proche à ≤ 2 s si des frames manquent), sinon nouveau track.
+function finishDraw(d) {
+  const clamp = (v) => Math.min(1, Math.max(0, v));
+  const box = [clamp(Math.min(d.a[0], d.b[0])), clamp(Math.min(d.a[1], d.b[1])),
+               clamp(Math.max(d.a[0], d.b[0])), clamp(Math.max(d.a[1], d.b[1]))];
+  if (box[2] - box[0] < 0.002 || box[3] - box[1] < 0.005) { renderFrame(); return; }
+  const r2 = (b) => b.map(v => +v.toFixed(5));
+  const sel = selected.size === 1 ? trackById.get([...selected][0]) : null;
+  const newOps = [];
+  let id;
+  if (sel) {
+    id = sel.id;
+    const op = { op: "add_box", id, frame, box: r2(box), cls: sel.className === "cyclist" ? "cyclist" : "person" };
+    if (sel.frameSet.has(frame)) {
+      newOps.push(...finalIdsOf(new Set([id]), frame).map(i => ({ op: "delete_box", id: i, frame })));
+    } else {
+      const maxGap = Math.round(2 * C.fps);
+      const prev = sel.frames.filter(f => f < frame).pop(), next = sel.frames.find(f => f > frame);
+      const from = prev != null && frame - prev > 1 && frame - prev <= maxGap ? prev
+        : next != null && next - frame > 1 && next - frame <= maxGap ? next : null;
+      const fb = from == null ? null : frameBoxes(from, true).find(b => b.id === id);
+      if (fb) { op.from = from; op.from_box = r2(fb.box); }
+    }
+    newOps.push(op);
+  } else {
+    const used = new Set(ops.filter(o => o.op === "add_box" && o.id >= DRAWN_BASE).map(o => o.id));
+    id = DRAWN_BASE; while (used.has(id)) id++;
+    newOps.push({ op: "add_box", id, frame, box: r2(box), cls: "person" });
+  }
+  pushAction(newOps);
+  selected = new Set([id]); renderAll();
+}
 
 // Boîtes de la frame telles qu'elles partent dans le CSV corrigé (cf. make_cyclists()) :
 // un cycliste = une boîte, union de sa personne et de son vélo ; aucun vélo seul.
@@ -70,7 +120,7 @@ function frameBoxes(f, showDead) {
       }
       continue;
     }
-    out.push({ id, raw, box, conf: d[3] });
+    out.push({ id, raw, box, conf: d[3], manual: d[9] !== undefined });
   }
   for (const c of cyc.values()) {
     if (c.bikeY2 !== null) c.box[3] = c.bikeY2;

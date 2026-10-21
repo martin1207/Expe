@@ -48,15 +48,22 @@ function renderFrame() {
     if (sel) { octx.shadowColor = "#fff"; octx.shadowBlur = 8; }
     octx.strokeRect(x1, y1, Math.max(1, x2 - x1), Math.max(1, y2 - y1));
     octx.restore();
-    const label = (removed === "ego" ? "ego " : removed === "bike" ? "🚲 ✗ " : GONE_TXT[removed] ? `${GONE_TXT[removed]} ✗ ` : "")
+    const label = (b.manual ? "✎ " : "") + (removed === "ego" ? "ego " : removed === "bike" ? "🚲 ✗ " : GONE_TXT[removed] ? `${GONE_TXT[removed]} ✗ ` : "")
       + (raw < 0 ? "?" : `#${id}`) + (raw >= 0 && id !== raw && !b.cyclist ? ` (${raw})` : "")
       + (b.cyclist ? (b.parts === "bike_estimated" || b.parts === "bike_interpolated" ? " cyclist ≈" : " cyclist") : "")
       + ` ${b.conf.toFixed(2)}`
-      + ((p => p ? ` · ${p.d.toFixed(1)} m` : "")(!removed && raw >= 0 ? posAt(frame, id) : null));
+      + ((p => p ? ` · ${distTxt(p)}` : "")(!removed && raw >= 0 ? posAt(frame, id) : null));
     const tw = octx.measureText(label).width + 6;
     octx.fillStyle = col;
     octx.fillRect(x1, y1 - 15, tw, 15);
     octx.fillStyle = "#000"; octx.fillText(label, x1 + 3, y1 - 4);
+  }
+  if (drawing) {
+    // boîte en cours de tracé
+    const [x1, y1] = toScreen(Math.min(drawing.a[0], drawing.b[0]), Math.min(drawing.a[1], drawing.b[1]));
+    const [x2, y2] = toScreen(Math.max(drawing.a[0], drawing.b[0]), Math.max(drawing.a[1], drawing.b[1]));
+    octx.save(); octx.strokeStyle = "#fff"; octx.lineWidth = 2; octx.setLineDash([6, 4]);
+    octx.strokeRect(x1, y1, x2 - x1, y2 - y1); octx.restore();
   }
   $("seek").value = frame;
   const utc = C.utc0 ? " · " + new Date((C.utc0 + frame / C.fps) * 1000).toISOString().slice(11, 22) + " UTC" : "";
@@ -160,6 +167,7 @@ function renderPanel() {
     : o.op === "delete_box" ? `boîte #${o.id} · <a href="#" data-go="${o.frame}">frame ${o.frame}</a>`
     : o.op === "split" ? `coupure #${o.id} · <a href="#" data-go="${o.frame}">frame ${o.frame}</a>`
     : o.op === "keep" ? `garder #${o.id}`
+    : o.op === "add_box" ? `boîte dessinée #${o.id} · <a href="#" data-go="${o.frame}">frame ${o.frame}</a>${o.from != null ? ` (+${Math.abs(o.frame - o.from) - 1} interpolées)` : ""}`
     : `séparer #${o.person} / 🚲#${o.bike}`;
   $("ops").innerHTML = ops.map((o, i) => `<li>${opText(o)}<button data-rm="${i}" title="Retirer">×</button></li>`).join("")
     || `<span class="muted">aucune</span>`;
@@ -174,7 +182,7 @@ function renderPanel() {
     + `${deadTracks.length ? ` + ${deadTracks.length} suppr.` : ""}${nLoneBikes ? ` · ${nLoneBikes} vélo(s) seul(s) retiré(s)` : ""}`
     + `${goneTxt ? ` · retirés d'office : ${goneTxt}` : ""})`;
   const goneTitle = (t) => !t.gone ? "" : t.gone === "short"
-    ? `Moins de ${C.min_track_frames} frames : retiré du CSV, sauf s'il est fusionné`
+    ? `Moins de ${C.min_track_frames} frames, y compris avant toute coupure : retiré du CSV, sauf s'il est fusionné`
     : `Retiré d'office (${GONE_TXT[t.gone]}) : K pour le garder`;
   const rowsHtml = (list) => list.map(t => `
     <tr data-id="${t.id}" class="${t.dead ? "dead" : selected.has(t.id) ? "sel" : t.gone ? "short" : ""}"
